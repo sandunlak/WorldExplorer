@@ -6,89 +6,112 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const login = async (email, password) => {
     try {
-      const response = await fetch('http://localhost:7001/api/users/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include'
-      });
+      // Check if user exists in localStorage
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const foundUser = users.find(u => u.email === email && u.password === password);
 
-      const data = await response.json();
-      if (response.ok) {
-        setUser(data.user);
-        setToken(data.token);
-        localStorage.setItem('token', data.token);
-        navigate('/dashboard');
-      } else {
-        throw new Error(data.message || 'Login failed');
+      if (!foundUser) {
+        throw new Error('Invalid credentials');
       }
+
+      // Generate a simple token (in a real app, use a more secure method)
+      const token = btoa(`${email}:${Date.now()}`);
+      
+      setUser(foundUser);
+      setToken(token);
+      localStorage.setItem('token', token);
+      navigate('/dashboard');
     } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      throw new Error(error.message || 'Login failed. Please try again.');
     }
   };
 
   const register = async (formData) => {
     try {
-      const response = await fetch('http://localhost:7001/api/users/register', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
+      // Convert FormData to object
+      const userData = {};
+      formData.forEach((value, key) => {
+        userData[key] = value;
       });
 
-      const data = await response.json();
-      if (response.ok) {
-        setUser(data.user);
-        setToken(data.token);
-        localStorage.setItem('token', data.token);
-        navigate('/dashboard');
-      } else {
-        throw new Error(data.message || 'Registration failed');
+      // Check if email already exists
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      if (users.some(u => u.email === userData.email)) {
+        throw new Error('Email already registered');
       }
+
+      // Create new user
+      const newUser = {
+        email: userData.email,
+        password: userData.password,
+        name: userData.name || '',
+        id: Date.now().toString()
+      };
+
+      // Save user to localStorage
+      users.push(newUser);
+      localStorage.setItem('users', JSON.stringify(users));
+
+      // Generate token
+      const token = btoa(`${userData.email}:${Date.now()}`);
+      
+      setUser(newUser);
+      setToken(token);
+      localStorage.setItem('token', token);
+      navigate('/dashboard');
     } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
+      throw new Error(error.message || 'Registration failed');
     }
   };
 
-  const logout = async () => {
-    await fetch('http://localhost:7001/api/users/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
+  const logout = () => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
     navigate('/login');
   };
 
-  const checkAuth = async () => {
+  const checkAuth = () => {
     try {
-      const response = await fetch('http://localhost:7001/api/users/check-auth', {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setUser(data.user);
+      if (!token) {
+        throw new Error('No token');
+      }
+
+      // Get users from localStorage
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const decodedToken = atob(token);
+      const email = decodedToken.split(':')[0];
+      const foundUser = users.find(u => u.email === email);
+
+      if (foundUser) {
+        setUser(foundUser);
       } else {
-        logout();
+        throw new Error('User not found');
       }
     } catch (error) {
-      console.error('Auth check error:', error);
-      logout();
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem('token');
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (token) checkAuth();
-  }, []);
+    if (token) {
+      checkAuth();
+    } else {
+      setLoading(false);
+    }
+  }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

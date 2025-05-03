@@ -5,6 +5,8 @@ import Register from './components/Auth/Register';
 import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import Navbar from './components/Layout/Navbar';
+import Favorites from './pages/Favorites';
+import Details from './pages/Details';
 import './App.css';
 
 function App() {
@@ -26,6 +28,14 @@ function App() {
         <Route 
           path="/dashboard" 
           element={user ? <Dashboard /> : <Navigate to="/login" />} 
+        />
+        <Route 
+          path="/favorites" 
+          element={user ? <Favorites /> : <Navigate to="/login" />} 
+        />
+        <Route 
+          path="/details/:cca3" 
+          element={user ? <Details /> : <Navigate to="/login" />} 
         />
       </Routes>
     </div>
